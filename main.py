@@ -1,7 +1,6 @@
 import json
 import sys
 
-# Teste de comunicação
 
 # ============================================================================
 # TABELAS DE INSTRUÇÕES MIPS
