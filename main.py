@@ -1,409 +1,252 @@
 import json
 import sys
-
+import math
 
 # ============================================================================
 # TABELAS DE INSTRUÇÕES MIPS
 # ============================================================================
 
-# Instruções R-type (opcode = 0)
 R_TYPE_INSTRUCTIONS = {
-    0x20: "add",    # 32
-    0x21: "addu",   # 33
-    0x22: "sub",    # 34
-    0x23: "subu",   # 35
-    0x24: "and",    # 36
-    0x25: "or",     # 37
-    0x26: "xor",    # 38
-    0x27: "nor",    # 39
-    0x2A: "slt",    # 42
-    0x2B: "sltu",   # 43
-    0x00: "sll",    # 0
-    0x02: "srl",    # 2
-    0x03: "sra",    # 3
-    0x04: "sllv",   # 4
-    0x06: "srlv",   # 6
-    0x07: "srav",   # 7
-    0x08: "jr",     # 8
-    0x09: "jalr",   # 9
-    0x0C: "syscall",# 12
-    0x0D: "break",  # 13
-    0x10: "mfhi",   # 16
-    0x11: "mthi",   # 17
-    0x12: "mflo",   # 18
-    0x13: "mtlo",   # 19
-    0x18: "mult",   # 24
-    0x19: "multu",  # 25
-    0x1A: "div",    # 26
-    0x1B: "divu",   # 27
+    0x20: "add", 0x21: "addu", 0x22: "sub", 0x23: "subu",
+    0x24: "and", 0x25: "or", 0x26: "xor", 0x27: "nor",
+    0x2A: "slt", 0x2B: "sltu", 0x00: "sll", 0x02: "srl",
+    0x03: "sra", 0x04: "sllv", 0x06: "srlv", 0x07: "srav",
+    0x08: "jr", 0x09: "jalr", 0x0C: "syscall", 0x0D: "break",
+    0x10: "mfhi", 0x11: "mthi", 0x12: "mflo", 0x13: "mtlo",
+    0x18: "mult", 0x19: "multu", 0x1A: "div", 0x1B: "divu"
 }
 
-# Instruções I-type (diferenciadas pelo opcode)
 I_TYPE_INSTRUCTIONS = {
-    0x06: "blez",   # 6
-    0x07: "bgtz",   # 7
-    0x08: "addi",   # 8
-    0x09: "addiu",  # 9
-    0x0A: "slti",   # 10
-    0x0B: "sltiu",  # 11
-    0x0C: "andi",   # 12
-    0x0D: "ori",    # 13
-    0x0E: "xori",   # 14
-    0x0F: "lui",    # 15
-    0x20: "lb",     # 32
-    0x21: "lh",     # 33
-    0x23: "lw",     # 35
-    0x24: "lbu",    # 36
-    0x25: "lhu",    # 37
-    0x28: "sb",     # 40
-    0x29: "sh",     # 41
-    0x2B: "sw",     # 43
-    0x04: "beq",    # 4
-    0x05: "bne",    # 5
+    0x08: "addi", 0x09: "addiu", 0x0A: "slti", 0x0B: "sltiu",
+    0x0C: "andi", 0x0D: "ori", 0x0E: "xori", 0x0F: "lui",
+    0x20: "lb", 0x21: "lh", 0x23: "lw", 0x24: "lbu", 0x25: "lhu",
+    0x28: "sb", 0x29: "sh", 0x2B: "sw",
+    0x04: "beq", 0x05: "bne", 0x06: "blez", 0x07: "bgtz"
 }
 
-# Instruções J-type (diferenciadas pelo opcode)
-J_TYPE_INSTRUCTIONS = {
-    0x02: "j",      # 2
-    0x03: "jal",    # 3
-}
+J_TYPE_INSTRUCTIONS = { 0x02: "j", 0x03: "jal" }
 
-REGIMM_INSTRUCTIONS = {
-    0: "bltz",
-    1: "bgez",
-    16: "bltzal",
-    17: "bgezal"
-}
-
+REGIMM_INSTRUCTIONS = { 0: "bltz", 1: "bgez", 16: "bltzal", 17: "bgezal" }
 
 # ============================================================================
 # FUNÇÕES DE EXTRAÇÃO DE BITS
 # ============================================================================
 
-# Funcionará da seguinte forma:
-# 1. Shift à direita para alinhar o campo com a posição 0
-# 2. Aplica máscara AND com (2^num_bits - 1) para isolar os bits
-
 def extract_bits(instruction, start_bit, num_bits):
-
-    # instruction: Valor inteiro da instrução (32 bits)
-    # start_bit: Bit mais significativo do campo (0-31, onde 31 é o MSB)
-    # num_bits: Número de bits a extrair
-    
-    # Calcula quantos bits shiftar à direita
     shift_amount = start_bit - num_bits + 1
-    
-    # Shift à direita
-    shifted = instruction >> shift_amount
-    
-    # Cria máscara: (2^num_bits - 1) = todos 1s no tamanho do campo
-    mask = (1 << num_bits) - 1
-    
-    # Aplica máscara para isolar apenas os bits desejados
-    return shifted & mask # Valor inteiro do campo extraído
+    return (instruction >> shift_amount) & ((1 << num_bits) - 1)
 
-
-def extract_opcode(instruction):
-    # Extrai o opcode (bits 31-26, 6 bits)
-    return extract_bits(instruction, 31, 6)
-
-
-def extract_rs(instruction):
-    # Extrai rs - registrador fonte (bits 25-21, 5 bits)
-    return extract_bits(instruction, 25, 5)
-
-
-def extract_rt(instruction):
-    # Extrai rt - registrador fonte/destino (bits 20-16, 5 bits)
-    return extract_bits(instruction, 20, 5)
-
-
-def extract_rd(instruction):
-    # Extrai rd - registrador destino (bits 15-11, 5 bits)
-    return extract_bits(instruction, 15, 5)
-
-
-def extract_shamt(instruction):
-    # Extrai shamt - shift amount (bits 10-6, 5 bits)
-    return extract_bits(instruction, 10, 5)
-
-
-def extract_funct(instruction):
-    # Extrai funct - função (bits 5-0, 6 bits)
-    return extract_bits(instruction, 5, 6)
-
-
-def extract_immediate(instruction):
-    # Extrai immediate - valor imediato (bits 15-0, 16 bits)
-    return extract_bits(instruction, 15, 16)
-
-
-def extract_address(instruction):
-    # Extrai address - endereço (bits 25-0, 26 bits)
-    return extract_bits(instruction, 25, 26)
-
+def extract_opcode(instruction): return extract_bits(instruction, 31, 6)
+def extract_rs(instruction): return extract_bits(instruction, 25, 5)
+def extract_rt(instruction): return extract_bits(instruction, 20, 5)
+def extract_rd(instruction): return extract_bits(instruction, 15, 5)
+def extract_shamt(instruction): return extract_bits(instruction, 10, 5)
+def extract_funct(instruction): return extract_bits(instruction, 5, 6)
+def extract_immediate(instruction): return extract_bits(instruction, 15, 16)
+def extract_address(instruction): return extract_bits(instruction, 25, 26)
 
 # ============================================================================
-# FUNÇÕES DE DECODIFICAÇÃO POR TIPO
+# FUNÇÕES DE DECODIFICAÇÃO (FASE 1)
 # ============================================================================
 
 def decode_r_type(instruction):
-
-    rs = extract_rs(instruction)
-    rt = extract_rt(instruction)
-    rd = extract_rd(instruction)
-    shamt = extract_shamt(instruction)
-    funct = extract_funct(instruction)
-    
-    # Busca o mnemônico na tabela
+    rs, rt, rd = extract_rs(instruction), extract_rt(instruction), extract_rd(instruction)
+    shamt, funct = extract_shamt(instruction), extract_funct(instruction)
     mnemonic = R_TYPE_INSTRUCTIONS.get(funct, f"unknown_r_{funct}")
     
-    # Formata a instrução assembly de acordo com o tipo
-    # Instruções especiais têm formatos diferentes
-    if mnemonic in ["jr", "jalr"]:
-        # jr $rs | jalr $rd, $rs
-        if mnemonic == "jr":
-            return f"{mnemonic} ${rs}"
-        else:
-            return f"{mnemonic} ${rd}, ${rs}"
-    
-    elif mnemonic in ["syscall", "break"]:
-        # syscall | break (sem operandos)
-        return mnemonic
-    
-    elif mnemonic in ["mfhi", "mflo"]:
-        # mfhi $rd | mflo $rd
-        return f"{mnemonic} ${rd}"
-    
-    elif mnemonic in ["mthi", "mtlo"]:
-        # mthi $rs | mtlo $rs
-        return f"{mnemonic} ${rs}"
-    
-    elif mnemonic in ["mult", "multu", "div", "divu"]:
-        # mult $rs, $rt | div $rs, $rt
-        return f"{mnemonic} ${rs}, ${rt}"
-    
-    elif mnemonic in ["sll", "srl", "sra"]:
-        # sll $rd, $rt, shamt
-        return f"{mnemonic} ${rd}, ${rt}, {shamt}"
-    
-    elif mnemonic in ["sllv", "srlv", "srav"]:
-        # sllv $rd, $rt, $rs
-        return f"{mnemonic} ${rd}, ${rt}, ${rs}"
-    
-    else:
-        # Formato padrão R-type: mnemonic $rd, $rs, $rt
-        return f"{mnemonic} ${rd}, ${rs}, ${rt}"
-
+    if mnemonic in ["jr"]: return f"{mnemonic} ${rs}"
+    if mnemonic in ["jalr"]: return f"{mnemonic} ${rd}, ${rs}"
+    if mnemonic in ["syscall", "break"]: return mnemonic
+    if mnemonic in ["mfhi", "mflo"]: return f"{mnemonic} ${rd}"
+    if mnemonic in ["mthi", "mtlo"]: return f"{mnemonic} ${rs}"
+    if mnemonic in ["mult", "multu", "div", "divu"]: return f"{mnemonic} ${rs}, ${rt}"
+    if mnemonic in ["sll", "srl", "sra"]: return f"{mnemonic} ${rd}, ${rt}, {shamt}"
+    if mnemonic in ["sllv", "srlv", "srav"]: return f"{mnemonic} ${rd}, ${rt}, ${rs}"
+    return f"{mnemonic} ${rd}, ${rs}, ${rt}"
 
 def decode_i_type(instruction):
-
     opcode = extract_opcode(instruction)
-    rs = extract_rs(instruction)
-    rt = extract_rt(instruction)
+    rs, rt = extract_rs(instruction), extract_rt(instruction)
     immediate = extract_immediate(instruction)
-    
-    # Busca o mnemônico na tabela
     mnemonic = I_TYPE_INSTRUCTIONS.get(opcode, f"unknown_i_{opcode}")
     
-    # Formata a instrução assembly de acordo com o tipo
-    if mnemonic in ["beq", "bne"]:
-        # beq $rs, $rt, offset | bne $rs, $rt, offset
-        # O offset é um valor signed de 16 bits
-        if immediate >= 0x8000:
-            immediate = immediate - 0x10000  # Converte para signed
-        return f"{mnemonic} ${rs}, ${rt}, {immediate}"
-
-    elif mnemonic in ["bgtz", "bltz", "blez", "bgez", "bltzal", "bgezal"]:
-        # Formato: mnemônico $rs, offset
-        if immediate >= 0x8000:
-            immediate = immediate - 0x10000
-        return f"{mnemonic} ${rs}, {immediate}"
+    imm_signed = immediate - 0x10000 if immediate >= 0x8000 else immediate
     
-    elif mnemonic in ["lb", "lh", "lw", "lbu", "lhu", "sb", "sh", "sw"]:
-        # lw $rt, offset($rs)
-        if immediate >= 0x8000:
-            immediate = immediate - 0x10000  # Converte para signed
-        return f"{mnemonic} ${rt}, {immediate}(${rs})"
-    
-    elif mnemonic == "lui":
-        # lui $rt, immediate
-        return f"{mnemonic} ${rt}, {immediate}"
-    
-    else:
-        # Formato padrão I-type: mnemonic $rt, $rs, immediate
-        if immediate >= 0x8000:
-            immediate = immediate - 0x10000  # Converte para signed
-        return f"{mnemonic} ${rt}, ${rs}, {immediate}"
-
+    if mnemonic in ["beq", "bne", "bgtz", "bltz", "blez", "bgez"]:
+        if mnemonic in ["bgtz", "bltz", "blez", "bgez"]:
+            return f"{mnemonic} ${rs}, {imm_signed}"
+        return f"{mnemonic} ${rs}, ${rt}, {imm_signed}"
+    if mnemonic in ["lb", "lh", "lw", "lbu", "lhu", "sb", "sh", "sw"]:
+        return f"{mnemonic} ${rt}, {imm_signed}(${rs})"
+    if mnemonic == "lui": return f"{mnemonic} ${rt}, {immediate}"
+    return f"{mnemonic} ${rt}, ${rs}, {imm_signed}"
 
 def decode_j_type(instruction):
-
     opcode = extract_opcode(instruction)
     address = extract_address(instruction)
-    
-    # Busca o mnemônico na tabela
     mnemonic = J_TYPE_INSTRUCTIONS.get(opcode, f"unknown_j_{opcode}")
-    
-    # Formato: j address | jal address
     return f"{mnemonic} {address}"
 
 def decode_regimm(instruction):
+    rs, rt = extract_rs(instruction), extract_rt(instruction)
+    immediate = extract_immediate(instruction)
+    mnemonic = REGIMM_INSTRUCTIONS.get(rt, f"unknown_regimm_rt{rt}")
+    imm_signed = immediate - 0x10000 if immediate >= 0x8000 else immediate
+    return f"{mnemonic} ${rs}, {imm_signed}"
 
-    rs = extract_rs(instruction)
-    rt = extract_rt(instruction)
+def decode_instruction(hex_string):
+    instruction = int(hex_string, 16)
+    opcode = extract_opcode(instruction)
+    if opcode == 0: return decode_r_type(instruction)
+    if opcode == 0x01: return decode_regimm(instruction)
+    if opcode in J_TYPE_INSTRUCTIONS: return decode_j_type(instruction)
+    if opcode in I_TYPE_INSTRUCTIONS: return decode_i_type(instruction)
+    return f"unknown_opcode_{opcode}"
+
+# ============================================================================
+# BANCO DE REGISTRADORES (FASE 2)
+# ============================================================================
+
+class RegisterFile:
+    def __init__(self, initial_regs=None):
+        self.regs = [0] * 32
+        self.pc, self.hi, self.lo = 0, 0, 0
+        if initial_regs:
+            for name, value in initial_regs.items():
+                if name == "$pc" or name == "pc": self.pc = value
+                elif name == "$hi" or name == "hi": self.hi = value
+                elif name == "$lo" or name == "lo": self.lo = value
+                elif name.startswith("$"):
+                    try: self.regs[int(name[1:])] = value & 0xFFFFFFFF
+                    except ValueError: pass
+
+    def get(self, reg_num):
+        return 0 if reg_num == 0 else self.regs[reg_num]
+
+    def set(self, reg_num, value):
+        if reg_num == 0: return
+        self.regs[reg_num] = value & 0xFFFFFFFF
+
+    def to_signed(self, value):
+        val = value & 0xFFFFFFFF
+        return val - 0x100000000 if val >= 0x80000000 else val
+
+    def get_snapshot(self):
+        snapshot = {}
+        for i in range(32):
+            if self.regs[i] != 0: snapshot[f"${i}"] = self.regs[i]
+        if self.pc != 0: snapshot["$pc"] = self.pc
+        if self.hi != 0: snapshot["$hi"] = self.hi
+        if self.lo != 0: snapshot["$lo"] = self.lo
+        return snapshot
+
+# ============================================================================
+# EXECUÇÃO DE INSTRUÇÕES (FASE 2)
+# ============================================================================
+
+def execute_r_type(instruction, reg_file):
+    rs, rt, rd = extract_rs(instruction), extract_rt(instruction), extract_rd(instruction)
+    shamt, funct = extract_shamt(instruction), extract_funct(instruction)
+    
+    rs_val, rt_val = reg_file.get(rs), reg_file.get(rt)
+    rs_s, rt_s = reg_file.to_signed(rs_val), reg_file.to_signed(rt_val)
+
+    if funct == 0x20: reg_file.set(rd, reg_file.to_signed(rs_s + rt_s))       # add
+    elif funct == 0x21: reg_file.set(rd, rs_val + rt_val)                     # addu
+    elif funct == 0x22: reg_file.set(rd, reg_file.to_signed(rs_s - rt_s))     # sub
+    elif funct == 0x23: reg_file.set(rd, rs_val - rt_val)                     # subu
+    elif funct == 0x24: reg_file.set(rd, rs_val & rt_val)                     # and
+    elif funct == 0x25: reg_file.set(rd, rs_val | rt_val)                     # or
+    elif funct == 0x26: reg_file.set(rd, rs_val ^ rt_val)                     # xor
+    elif funct == 0x27: reg_file.set(rd, ~(rs_val | rt_val))                  # nor
+    elif funct == 0x2A: reg_file.set(rd, 1 if rs_s < rt_s else 0)             # slt
+    elif funct == 0x10: reg_file.set(rd, reg_file.hi)                         # mfhi
+    elif funct == 0x12: reg_file.set(rd, reg_file.lo)                         # mflo
+    elif funct == 0x00: reg_file.set(rd, rt_val << shamt)                     # sll
+    elif funct == 0x02: reg_file.set(rd, rt_val >> shamt)                     # srl
+    elif funct == 0x03: reg_file.set(rd, reg_file.to_signed(rt_val) >> shamt) # sra
+    elif funct == 0x04: reg_file.set(rd, rt_val << rs_val)                    # sllv
+    elif funct == 0x06: reg_file.set(rd, rt_val >> rs_val)                    # srlv
+    elif funct == 0x07: reg_file.set(rd, reg_file.to_signed(rt_val) >> rs_val)# srav
+    elif funct == 0x18: # mult
+        prod = rs_s * rt_s
+        if prod < 0: prod = prod & 0xFFFFFFFFFFFFFFFF
+        reg_file.hi = (prod >> 32) & 0xFFFFFFFF; reg_file.lo = prod & 0xFFFFFFFF
+    elif funct == 0x19: # multu
+        prod = rs_val * rt_val
+        reg_file.hi = (prod >> 32) & 0xFFFFFFFF; reg_file.lo = prod & 0xFFFFFFFF
+    elif funct == 0x1A: # div
+        if rt_s != 0:
+            reg_file.lo = reg_file.to_signed(math.trunc(rs_s / rt_s))
+            reg_file.hi = reg_file.to_signed(rs_s - math.trunc(rs_s / rt_s) * rt_s)
+    elif funct == 0x1B: # divu
+        if rt_val != 0:
+            reg_file.lo = rs_val // rt_val; reg_file.hi = rs_val % rt_val
+
+def execute_i_type(instruction, reg_file):
+    opcode = extract_opcode(instruction)
+    rs, rt = extract_rs(instruction), extract_rt(instruction)
     immediate = extract_immediate(instruction)
     
-    # Tabela local de instruções REGIMM (diferenciadas pelo rt)
-    REGIMM_INSTRUCTIONS = {
-        0:  "bltz",
-        1:  "bgez",
-        16: "bltzal",
-        17: "bgezal"
-    }
-    
-    # Busca o mnemônico baseado no campo rt
-    mnemonic = REGIMM_INSTRUCTIONS.get(rt, f"unknown_regimm_rt{rt}")
-    
-    # Converte immediate para signed (16 bits)
-    if immediate >= 0x8000:
-        immediate = immediate - 0x10000
-    
-    # Formato: mnemônico $rs, offset
-    return f"{mnemonic} ${rs}, {immediate}"
+    rs_val = reg_file.get(rs)
+    rs_s = reg_file.to_signed(rs_val)
+    imm_s = immediate - 0x10000 if immediate >= 0x8000 else immediate
 
-# ============================================================================
-# FUNÇÃO PRINCIPAL DE DECODIFICAÇÃO
-# ============================================================================
+    if opcode == 0x08: reg_file.set(rt, reg_file.to_signed(rs_s + imm_s))     # addi
+    elif opcode == 0x09: reg_file.set(rt, rs_val + (imm_s & 0xFFFFFFFF))      # addiu
+    elif opcode == 0x0A: reg_file.set(rt, 1 if rs_s < imm_s else 0)           # slti
+    elif opcode == 0x0C: reg_file.set(rt, rs_val & immediate)                 # andi
+    elif opcode == 0x0D: reg_file.set(rt, rs_val | immediate)                 # ori
+    elif opcode == 0x0E: reg_file.set(rt, rs_val ^ immediate)                 # xori
 
-# Decodifica uma instrução MIPS de hexadecimal para assembly
-def decode_instruction(hex_string):
-    # hex_string: String hexadecimal da instrução (ex: "0x02114020")
-    
-    # Converte hexadecimal para inteiro
+def execute_instruction(hex_string, reg_file):
     instruction = int(hex_string, 16)
-    
-    # Extrai o opcode para determinar o tipo
     opcode = extract_opcode(instruction)
-    
-    # Decodifica de acordo com o tipo
-    if opcode == 0:
-        # R-type: opcode é 0, diferenciado pelo funct
-        return decode_r_type(instruction)
-    elif opcode in J_TYPE_INSTRUCTIONS:
-        # J-type
-        return decode_j_type(instruction)
-    elif opcode == 0x01:
-        # REGIMM: precisa verificar rt para determinar instrução
-        return decode_regimm(instruction)
-    elif opcode in I_TYPE_INSTRUCTIONS:
-        # I-type
-        return decode_i_type(instruction)
-    else:
-        # Instrução não reconhecida
-        return f"unknown_opcode_{opcode}"
-
+    if opcode == 0: execute_r_type(instruction, reg_file)
+    elif opcode in I_TYPE_INSTRUCTIONS: execute_i_type(instruction, reg_file)
+    # J-type e REGIMM (branches) não alteram registradores aritméticos nesta fase
 
 # ============================================================================
-# FUNÇÕES DE LEITURA E ESCRITA DE JSON
-# ============================================================================
-
-def read_input_json(filename):
-    # Lê o arquivo JSON de entrada.
-    
-    with open(filename, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
-def write_output_json(output_data, filename):
-    # Escreve o arquivo JSON de saída.
-    
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(output_data, f, indent=2, ensure_ascii=False)
-
-
-# ============================================================================
-# FUNÇÃO PRINCIPAL DE PROCESSAMENTO
+# PROCESSAMENTO PRINCIPAL E I/O
 # ============================================================================
 
 def process_mips_simulation(input_data):
-    # Processa a simulação MIPS - Apenas decodificação.
-    # input_data: Lista de objetos JSON de entrada
-    
     output_data = []
-    
     for program in input_data:
-        # Extrai o array de instruções
-        text_instructions = program.get("text", [])
+        initial_regs = program.get("config", {}).get("regs", {})
+        reg_file = RegisterFile(initial_regs)
         
-        # Processa cada instrução
-        for hex_instruction in text_instructions:
-            # Decodifica a instrução
+        for hex_instruction in program.get("text", []):
             assembly_text = decode_instruction(hex_instruction)
+            execute_instruction(hex_instruction, reg_file)
             
-            # Cria o objeto de saída
-            output_entry = {
+            output_data.append({
                 "hex": hex_instruction,
                 "text": assembly_text,
-                "regs": {},      # Fase 1: vazio
-                "mem": {},       # Fase 1: vazio
-                "stdout": ""     # Fase 1: string vazia
-            }
-            
-            output_data.append(output_entry)
-    
-    return output_data # Lista de objetos JSON de saída
-
-
-# ============================================================================
-# FUNÇÃO MAIN
-# ============================================================================
+                "regs": reg_file.get_snapshot(),
+                "mem": {},
+                "stdout": ""
+            })
+    return output_data
 
 def main():
-
-    # Verifica argumentos da linha de comando
     if len(sys.argv) != 3:
         print("Uso: python mips_simulator.py <input.json> <output.json>")
         sys.exit(1)
     
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-    
     try:
-        # Lê o JSON de entrada
-        print(f"Lendo arquivo de entrada: {input_file}")
-        input_data = read_input_json(input_file)
+        with open(sys.argv[1], 'r', encoding='utf-8') as f:
+            input_data = json.load(f)
         
-        # Processa a simulação
-        print("Processando decodificação de instruções...")
         output_data = process_mips_simulation(input_data)
         
-        # Escreve o JSON de saída
-        print(f"Escrevendo arquivo de saída: {output_file}")
-        write_output_json(output_data, output_file)
-        
-        print("Processamento concluído com sucesso!")
-        
-        # Imprime resumo
-        print(f"\nResumo:")
-        print(f"  Total de instruções processadas: {len(output_data)}")
-        
-        # Teste de validação
-        if output_data:
-            print(f"\nPrimeira instrução decodificada:")
-            print(f"  Hex: {output_data[0]['hex']}")
-            print(f"  Assembly: {output_data[0]['text']}")
-        
-    except FileNotFoundError:
-        print(f"Erro: Arquivo não encontrado: {input_file}")
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Erro ao decodificar JSON: {e}")
-        sys.exit(1)
+        with open(sys.argv[2], 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+            
+        print(f"Sucesso! {len(output_data)} instruções processadas.")
     except Exception as e:
-        print(f"Erro inesperado: {e}")
+        print(f"Erro: {e}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
