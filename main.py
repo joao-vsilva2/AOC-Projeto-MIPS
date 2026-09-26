@@ -40,6 +40,8 @@ R_TYPE_INSTRUCTIONS = {
 
 # Instruções I-type (diferenciadas pelo opcode)
 I_TYPE_INSTRUCTIONS = {
+    0x06: "blez",   # 6
+    0x07: "bgtz",   # 7
     0x08: "addi",   # 8
     0x09: "addiu",  # 9
     0x0A: "slti",   # 10
@@ -64,6 +66,13 @@ I_TYPE_INSTRUCTIONS = {
 J_TYPE_INSTRUCTIONS = {
     0x02: "j",      # 2
     0x03: "jal",    # 3
+}
+
+REGIMM_INSTRUCTIONS = {
+    0: "bltz",
+    1: "bgez",
+    16: "bltzal",
+    17: "bgezal"
 }
 
 
@@ -204,6 +213,12 @@ def decode_i_type(instruction):
         if immediate >= 0x8000:
             immediate = immediate - 0x10000  # Converte para signed
         return f"{mnemonic} ${rs}, ${rt}, {immediate}"
+
+    elif mnemonic in ["bgtz", "bltz", "blez", "bgez", "bltzal", "bgezal"]:
+        # Formato: mnemônico $rs, offset
+        if immediate >= 0x8000:
+            immediate = immediate - 0x10000
+        return f"{mnemonic} ${rs}, {immediate}"
     
     elif mnemonic in ["lb", "lh", "lw", "lbu", "lhu", "sb", "sh", "sw"]:
         # lw $rt, offset($rs)
@@ -233,6 +248,29 @@ def decode_j_type(instruction):
     # Formato: j address | jal address
     return f"{mnemonic} {address}"
 
+def decode_regimm(instruction):
+
+    rs = extract_rs(instruction)
+    rt = extract_rt(instruction)
+    immediate = extract_immediate(instruction)
+    
+    # Tabela local de instruções REGIMM (diferenciadas pelo rt)
+    REGIMM_INSTRUCTIONS = {
+        0:  "bltz",
+        1:  "bgez",
+        16: "bltzal",
+        17: "bgezal"
+    }
+    
+    # Busca o mnemônico baseado no campo rt
+    mnemonic = REGIMM_INSTRUCTIONS.get(rt, f"unknown_regimm_rt{rt}")
+    
+    # Converte immediate para signed (16 bits)
+    if immediate >= 0x8000:
+        immediate = immediate - 0x10000
+    
+    # Formato: mnemônico $rs, offset
+    return f"{mnemonic} ${rs}, {immediate}"
 
 # ============================================================================
 # FUNÇÃO PRINCIPAL DE DECODIFICAÇÃO
@@ -255,6 +293,9 @@ def decode_instruction(hex_string):
     elif opcode in J_TYPE_INSTRUCTIONS:
         # J-type
         return decode_j_type(instruction)
+    elif opcode == 0x01:
+        # REGIMM: precisa verificar rt para determinar instrução
+        return decode_regimm(instruction)
     elif opcode in I_TYPE_INSTRUCTIONS:
         # I-type
         return decode_i_type(instruction)
